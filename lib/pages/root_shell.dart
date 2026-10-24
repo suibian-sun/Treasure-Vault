@@ -33,12 +33,8 @@ class _RootShellState extends State<RootShell> {
     if (_updateChecked) return;
     _updateChecked = true;
     final state = AppState.instance;
-    // 等待本地设置加载完成，避免用到默认加速源
-    var tries = 0;
-    while (!state.ready && tries < 30) {
-      await Future<void>.delayed(const Duration(milliseconds: 50));
-      tries++;
-    }
+    // 等待本地设置加载完成，避免用到默认加速源（无轮询，零定时器）
+    await state.readyFuture;
     if (!mounted) return;
     if (!state.settings.autoCheckUpdate) return;
     await checkUpdateManually(context, silent: true);

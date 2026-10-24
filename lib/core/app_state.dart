@@ -30,6 +30,10 @@ class AppState extends ChangeNotifier {
 
   bool ready = false;
 
+  /// 初始化完成信号（页面用它等待本地设置加载，避免轮询定时器）。
+  final Completer<void> _readyCompleter = Completer<void>();
+  Future<void> get readyFuture => _readyCompleter.future;
+
   String _dataDir = '';
   String get dataDir => _dataDir;
 
@@ -60,6 +64,7 @@ class AppState extends ChangeNotifier {
     }
     themeNotifier.value = settings.theme.mode;
     ready = true;
+    if (!_readyCompleter.isCompleted) _readyCompleter.complete();
     notifyListeners();
   }
 

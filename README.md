@@ -51,7 +51,7 @@
 | **R8 + 资源压缩 + 分包** | `minifyEnabled` + `shrinkResources`，并 `--split-per-abi` 按 ABI 分包；单设备只安装自己那一份。 |
 | **无状态管理框架** | 一份 `ChangeNotifier` + `InheritedNotifier` 即可，省掉 Provider/Riverpod 的容器与监听对象。 |
 
-结果：安装包按 ABI 约 8–10 MB，冷启动只加载首页所需的对象树。
+结果：安装包按 ABI 约 15–19 MB（Flutter 引擎占大头），冷启动只加载首页所需的对象树；R8 + 资源压缩后 dex 与资源体积已压到最低。
 
 ---
 

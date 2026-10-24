@@ -145,6 +145,9 @@ jobs:
       - name: Analyze
         run: flutter analyze --no-fatal-infos --no-fatal-warnings
 
+      - name: Run tests
+        run: flutter test --reporter compact
+
       - name: Accept Android licenses
         run: yes | flutter doctor --android-licenses > /dev/null 2>&1 || true
 
