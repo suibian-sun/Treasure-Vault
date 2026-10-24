@@ -75,6 +75,28 @@ object OcrTools {
         })
     }
 
+    /**
+     * ML Kit 手动初始化。
+     *
+     * 清单里移除了 MlKitInitProvider（它在启动时自动执行，无 GMS 的设备上会直接崩溃），
+     * 因此这里在第一次真正用到识别能力时初始化；失败只影响当前工具，不会波及启动。
+     */
+    private var mlkitReady: Boolean? = null
+
+    private fun ensureMlKit(act: ToolActivity): Boolean {
+        mlkitReady?.let { if (it) return true }
+        val ok = runCatching {
+            val cls = Class.forName("com.google.mlkit.common.sdkinternal.MlKitContext")
+            runCatching {
+                cls.getMethod("initialize", android.content.Context::class.java)
+                    .invoke(null, act.applicationContext)
+            }
+            cls.getMethod("getInstance").invoke(null) != null
+        }.getOrDefault(false)
+        mlkitReady = ok
+        return ok
+    }
+
     /** 识别文字，返回按行合并的纯文本 + 每个文本块的位置。 */
     private fun recognize(bmp: Bitmap): Pair<String, List<Triple<String, Int, Int>>> {
         val recognizer = TextRecognition.getClient(ChineseTextRecognizerOptions.Builder().build())
@@ -96,10 +118,16 @@ object OcrTools {
             val u = list.firstOrNull() ?: return@pickRow
             val bmp = ImageKit.decode(act, u, 2000) ?: return@pickRow
             holder.removeAllViews()
+            if (!ensureMlKit(act)) {
+                holder.addView(act.card {
+                    sectionTitle("无法使用端侧识别")
+                    addView(act.tv("这台设备无法初始化 ML Kit（通常是因为没有 Google Play 服务）。\n\nOCR 依赖端侧模型，没有 GMS 时不可用；其余 130 多个工具不受影响。", 13f, T.ink2))
+                })
+                return@pickRow
+            }
             holder.addView(act.card {
                 sectionTitle("识别结果")
-                val loading = act.tv("识别中，请稍候…", 13f, T.ink2)
-                addView(loading)
+                addView(act.tv("识别中，请稍候…", 13f, T.ink2))
             })
             pool.execute {
                 val r = runCatching { recognize(bmp) }
@@ -156,6 +184,12 @@ object OcrTools {
             val u = list.firstOrNull() ?: return@pickRow
             val bmp = ImageKit.decode(act, u, 2200) ?: return@pickRow
             holder.removeAllViews()
+            if (!ensureMlKit(act)) {
+                holder.addView(act.card {
+                    addView(act.tv("这台设备无法初始化 ML Kit（缺少 Google Play 服务），表格识别不可用。", 13f, T.ink2))
+                })
+                return@pickRow
+            }
             holder.addView(act.card { addView(act.tv("识别中，请稍候…", 13f, T.ink2)) })
             pool.execute {
                 val r = runCatching {
@@ -231,6 +265,12 @@ object OcrTools {
             val u = list.firstOrNull() ?: return@pickRow
             val bmp = ImageKit.decode(act, u, 2000) ?: return@pickRow
             holder.removeAllViews()
+            if (!ensureMlKit(act)) {
+                holder.addView(act.card {
+                    addView(act.tv("这台设备无法初始化 ML Kit（缺少 Google Play 服务），扫码识别不可用；二维码生成仍可正常使用。", 13f, T.ink2))
+                })
+                return@pickRow
+            }
             holder.addView(act.card { addView(act.tv("识别中…", 13f, T.ink2)) })
             pool.execute {
                 val r = runCatching {

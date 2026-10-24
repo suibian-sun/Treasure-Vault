@@ -10,8 +10,8 @@ android {
         applicationId = "com.suibian.treasure_vault"
         minSdk = 24
         targetSdk = 36
-        versionCode = 4
-        versionName = "2.1.0"
+        versionCode = 5
+        versionName = "2.1.1"
         resourceConfigurations += listOf("zh", "en")
     }
 

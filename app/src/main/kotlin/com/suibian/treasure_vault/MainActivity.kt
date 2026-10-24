@@ -38,10 +38,15 @@ class MainActivity : AppCompatActivity() {
     private var appliedDark = false
 
     override fun onCreate(savedInstanceState: Bundle?) {
+        super.onCreate(savedInstanceState)
+        // 启动过程任何环节出错都退化为「可读的错误页」，而不是直接闪退
+        runCatching { buildUi() }.onFailure { showFatal(it) }
+    }
+
+    private fun buildUi() {
         T.sync(this)
         appliedPreset = T.preset.id
         appliedDark = T.dark
-        super.onCreate(savedInstanceState)
 
         window.statusBarColor = Color.TRANSPARENT
         window.navigationBarColor = Color.TRANSPARENT
@@ -65,6 +70,41 @@ class MainActivity : AppCompatActivity() {
         }
 
         show(0, false)
+    }
+
+    /** 兜底页：把异常摊开给用户看，并提供一键复制，便于定位问题。 */
+    private fun showFatal(error: Throwable) {
+        val trace = buildString {
+            append(error.javaClass.name).append(": ").append(error.message).append("\n")
+            error.stackTrace.take(12).forEach { append("  at ").append(it).append("\n") }
+        }
+        val col = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+            setBackgroundColor(0xFFFFFFFF.toInt())
+            setPadding(dp(24), dp(64), dp(24), dp(24))
+        }
+        col.addView(tv("应用启动失败", 20f, 0xFF1F2329.toInt(), true))
+        col.addView(tv("这通常说明某次构建有问题。请把下面的信息复制反馈，我会直接修。", 13f, 0xFF8A9099.toInt()).apply {
+            setPadding(0, dp(8), 0, dp(16))
+        })
+        col.addView(tv(trace, 11f, 0xFF1F2329.toInt()).apply {
+            setTextIsSelectable(true)
+            setPadding(dp(12), dp(12), dp(12), dp(12))
+            setBackgroundColor(0xFFF5F6F8.toInt())
+        }, LinearLayout.LayoutParams(-1, 0, 1f))
+        val copy = tv("复制错误信息", 14f, Color.WHITE, true).apply {
+            gravity = Gravity.CENTER
+            setPadding(0, dp(13), 0, dp(13))
+            setBackgroundColor(0xFF1890FF.toInt())
+            isClickable = true
+            setOnClickListener {
+                val cm = getSystemService(android.content.Context.CLIPBOARD_SERVICE) as android.content.ClipboardManager
+                cm.setPrimaryClip(android.content.ClipData.newPlainText("crash", trace))
+                android.widget.Toast.makeText(this@MainActivity, "已复制", android.widget.Toast.LENGTH_SHORT).show()
+            }
+        }
+        col.addView(copy, LinearLayout.LayoutParams(-1, -2).also { it.topMargin = dp(16) })
+        setContentView(col)
     }
 
     override fun onResume() {
@@ -125,10 +165,17 @@ class MainActivity : AppCompatActivity() {
     fun show(i: Int, animate: Boolean) {
         index = i
         content.removeAllViews()
-        val page: View = when (i) {
-            0 -> HomePage(this).view()
-            1 -> AllPage(this).view()
-            else -> MinePage(this).view()
+        val page: View = try {
+            when (i) {
+                0 -> HomePage(this).view()
+                1 -> AllPage(this).view()
+                else -> MinePage(this).view()
+            }
+        } catch (t: Throwable) {
+            // 单个页面构建失败不应拖垮整个应用
+            tv("页面加载失败：${t.javaClass.simpleName} ${t.message.orEmpty()}", 13f, T.danger).apply {
+                setPadding(dp(20), dp(40), dp(20), dp(20))
+            }
         }
         content.addView(page, FrameLayout.LayoutParams(-1, -1))
         refreshBar()

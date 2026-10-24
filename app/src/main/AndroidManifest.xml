@@ -23,6 +23,7 @@
     <uses-feature android:name="android.hardware.sensor.compass" android:required="false" />
 
     <application
+        android:name=".VaultApp"
         android:allowBackup="false"
         android:requestLegacyExternalStorage="true"
         android:icon="@mipmap/ic_launcher"
@@ -71,5 +72,21 @@
         <meta-data
             android:name="com.google.mlkit.vision.DEPENDENCIES"
             android:value="ocr,barcode" />
+
+        <!--
+          启动路径最小化：
+          ML Kit 与 AndroidX Startup 都会在 Application 创建后、Activity 启动前自动执行初始化。
+          在没有 Google Play 服务的设备上，ML Kit 初始化可能直接抛异常，表现为「点开就闪退」。
+          这里把这两个隐式入口移除，ML Kit 改为首次使用 OCR / 扫码时手动初始化，
+          AndroidX Startup 的 emoji2 / lifecycle / profileinstaller 本应用并未使用。
+        -->
+        <provider
+            android:name="com.google.mlkit.common.internal.MlKitInitProvider"
+            android:authorities="${applicationId}.mlkitinitprovider"
+            tools:node="remove" />
+        <provider
+            android:name="androidx.startup.InitializationProvider"
+            android:authorities="${applicationId}.androidx-startup"
+            tools:node="remove" />
     </application>
 </manifest>

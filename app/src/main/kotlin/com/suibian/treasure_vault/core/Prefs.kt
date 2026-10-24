@@ -37,6 +37,11 @@ class Prefs private constructor(ctx: Context) {
         get() = sp.getBoolean("perf.lowMemory", false)
         set(v) = sp.edit().putBoolean("perf.lowMemory", v).apply()
 
+    /** 上一次未捕获异常的摘要（用于问题反馈，启动成功后自动清空）。 */
+    var lastCrash: String
+        get() = sp.getString("diag.crash", "") ?: ""
+        set(v) = sp.edit().putString("diag.crash", v).apply()
+
     // ---------------- 收藏 ----------------
 
     fun favorites(): MutableList<String> {
