@@ -47,6 +47,7 @@ object TextExtraTools {
     private fun editor(act: ToolActivity, body: LinearLayout) {
         var text = ""
         var stats: android.widget.TextView? = null
+        var editRef: android.widget.EditText? = null
         fun refresh() {
             stats?.text = "${text.length} 字 · ${text.count { it == '\n' } + 1} 行 · ${text.count { !it.isWhitespace() }} 有效字符"
         }
@@ -54,6 +55,7 @@ object TextExtraTools {
             sectionTitle("编辑")
             val e = et("在这里输入或粘贴文本…", 14)
             e.inputType = InputType.TYPE_CLASS_TEXT or InputType.TYPE_TEXT_FLAG_MULTI_LINE
+            editRef = e
             val t = act.tv("", 11.5f, T.ink2)
             addView(t)
             stats = t
@@ -81,10 +83,10 @@ object TextExtraTools {
             row.addView(mk("复制", false) { Ui.copy(act, text) },
                 LinearLayout.LayoutParams(0, -2, 1f).also { it.rightMargin = act.dp(8) })
             row.addView(mk("清空", false) {
-                if (text.isNotEmpty()) {
-                    (act.currentFocus as? android.widget.EditText)?.let { }
-                    Ui.toast(act, "已清空（可重新输入）")
-                }
+                editRef?.setText("")
+                text = ""
+                refresh()
+                Ui.toast(act, "已清空")
             }, LinearLayout.LayoutParams(0, -2, 1f))
             addView(row)
             note("文本保存在应用专属目录，无需存储权限。")
