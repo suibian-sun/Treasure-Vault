@@ -12,7 +12,7 @@
 | 算法 | RSA 2048，SHA384withRSA，有效期至 2056-10-15 |
 | 证书 SHA-256 | `7F:E4:2D:68:9C:43:53:9E:EA:4C:39:65:18:2D:27:48:1B:15:ED:59:B4:4D:80:14:B0:A3:92:66:7F:1C:CE:5C` |
 
-仓库中**只保存证书指纹**（`android/signing/fingerprint.txt`）。私钥由以下 Secrets 提供：
+仓库中**只保存证书指纹**（`signing/fingerprint.txt`）。私钥由以下 Secrets 提供：
 
 | Secret | 说明 |
 | --- | --- |
@@ -21,7 +21,7 @@
 | `KEY_ALIAS` | `treasure-vault` |
 | `KEY_PASSWORD` | key 密码 |
 
-`build.yml` 第一步就把 keystore 还原到 `android/signing/treasure-vault.jks`，Gradle 从同一路径读取。这样：
+`build.yml` 第一步就把 keystore 还原到 `signing/treasure-vault.jks`，Gradle 从同一路径读取。这样：
 
 * CI 与本地构建产出的 APK **物理上使用同一把钥匙**；
 * 密钥不进入 git 历史，仓库可以安全公开；
@@ -33,7 +33,7 @@
 ```bash
 # ① 还原 keystore 前：确认 secret 存在
 # ② 构建前：keystore 的证书指纹 == 固定指纹
-keytool -list -v -keystore android/signing/treasure-vault.jks \
+keytool -list -v -keystore signing/treasure-vault.jks \
   -storepass "$KEYSTORE_PASSWORD" -alias "$KEY_ALIAS" | grep SHA256:
 
 # ③ 构建后：APK 的实际签名指纹 == 固定指纹

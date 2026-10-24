@@ -1,7 +1,5 @@
 name: Build & Release APK
 
-# 每次推送都会构建；只有 main 分支会把产物发布到公开 Release 仓库，
-# 应用内「检查更新」正是读取该仓库的 latest release。
 on:
   push:
     branches: ["**"]
@@ -19,10 +17,8 @@ concurrency:
   cancel-in-progress: true
 
 env:
-  # 签名材料由仓库 Secrets 注入（见 SIGNING.md）：
-  #   KEYSTORE_BASE64 / KEYSTORE_PASSWORD / KEY_ALIAS / KEY_PASSWORD
-  # 缺失时构建会直接失败，绝不会静默回退到 debug 签名。
-  KEYSTORE_PATH: android/signing/treasure-vault.jks
+  # 签名材料由 Secrets 注入（见 SIGNING.md）
+  KEYSTORE_PATH: signing/treasure-vault.jks
 
 jobs:
   build:
@@ -33,14 +29,11 @@ jobs:
 
       - name: Build metadata
         run: |
-          echo "=========== Treasure Vault build ==========="
-          echo "Workflow     : ${{ github.workflow }}"
-          echo "Run          : #${{ github.run_number }} (attempt ${{ github.run_attempt }})"
-          echo "Triggered by : ${{ github.event_name }} / ${{ github.actor }}"
-          echo "Ref          : ${{ github.ref }}"
-          echo "Commit       : ${{ github.sha }}"
-          echo "Pubspec      : $(grep -m1 '^version:' pubspec.yaml)"
-          echo "==========================================="
+          echo "=========== Treasure Vault (native) ==========="
+          echo "Run        : #${{ github.run_number }}"
+          echo "Commit     : ${{ github.sha }}"
+          echo "Gradle ver : $(grep -m1 'versionName' app/build.gradle.kts)"
+          echo "==============================================="
 
       - name: Setup Java 17
         uses: actions/setup-java@v4
@@ -48,229 +41,108 @@ jobs:
           distribution: temurin
           java-version: "17"
 
-      - name: Setup Flutter
-        uses: subosito/flutter-action@v2
-        with:
-          channel: stable
-          cache: true
+      - name: Setup Gradle
+        uses: gradle/actions/setup-gradle@v4
 
-      - name: Flutter version
-        run: |
-          flutter --version
-          flutter config --no-analytics
-
-      # ------------------------------------------------------------------
-      # 注入签名密钥：从 Secrets 还原 keystore（仓库中不保存私钥文件）
-      # ------------------------------------------------------------------
       - name: Inject signing keystore
         env:
           KEYSTORE_BASE64: ${{ secrets.KEYSTORE_BASE64 }}
-          KEYSTORE_PASSWORD: ${{ secrets.KEYSTORE_PASSWORD }}
-          KEY_ALIAS: ${{ secrets.KEY_ALIAS }}
-          KEY_PASSWORD: ${{ secrets.KEY_PASSWORD }}
         run: |
           set -euo pipefail
           if [ -z "${KEYSTORE_BASE64:-}" ]; then
             echo "::error::缺少 KEYSTORE_BASE64 secret，拒绝以 debug 签名构建"
             exit 1
           fi
-          mkdir -p android/signing
+          mkdir -p signing
           printf '%s' "$KEYSTORE_BASE64" | base64 -d > "$KEYSTORE_PATH"
-          echo "keystore size: $(stat -c%s "$KEYSTORE_PATH") bytes"
+          echo "keystore bytes: $(stat -c%s "$KEYSTORE_PATH")"
 
-      - name: Install dependencies
-        run: flutter pub get
-
-      # ------------------------------------------------------------------
-      # 一致性校验：三处版本号必须相同，否则用户会拿到「版本号对不上」的包
-      # ------------------------------------------------------------------
-      - name: Verify version consistency
-        run: |
-          set -euo pipefail
-          PUB_VER=$(grep -m1 '^version:' pubspec.yaml | sed -E 's/version:[[:space:]]*([0-9]+\.[0-9]+\.[0-9]+).*/\1/')
-          PUB_BUILD=$(grep -m1 '^version:' pubspec.yaml | sed -E 's/.*\+([0-9]+).*/\1/')
-          DART_VER=$(grep -m1 '^const String appVersion' lib/app_version.dart | sed -E "s/.*'([0-9]+\.[0-9]+\.[0-9]+)'.*/\1/")
-          DART_BUILD=$(grep -m1 '^const int appBuildNumber' lib/app_version.dart | sed -E "s/.*= *([0-9]+).*/\1/")
-          echo "pubspec : $PUB_VER+$PUB_BUILD"
-          echo "dart    : $DART_VER+$DART_BUILD"
-          if [ "$PUB_VER" != "$DART_VER" ] || [ "$PUB_BUILD" != "$DART_BUILD" ]; then
-            echo "::error::版本号不一致：pubspec.yaml 与 lib/app_version.dart 必须完全相同"
-            exit 1
-          fi
-
-      # ------------------------------------------------------------------
-      # 更新日志强制要求：当前版本必须在 release_notes.dart 中有条目。
-      # 该条目会随 Release 一起发布，用户可在应用内「更新记录」看到。
-      # ------------------------------------------------------------------
-      - name: Verify release notes exist
-        run: |
-          set -euo pipefail
-          VER=$(grep -m1 '^version:' pubspec.yaml | sed -E 's/version:[[:space:]]*([0-9]+\.[0-9]+\.[0-9]+).*/\1/')
-          if ! grep -q "version: '$VER'" lib/models/release_notes.dart; then
-            echo "::error::lib/models/release_notes.dart 缺少 $VER 的更新日志"
-            exit 1
-          fi
-          COUNT=$(awk -v v="version: '$VER'" '
-            index($0, v) { found=1; next }
-            found && /ReleaseNote\(/ { exit }
-            found { print }
-          ' lib/models/release_notes.dart | grep -cE "^\s*'[^']+',?\s*$" || true)
-          echo "release notes for v$VER: $COUNT 条"
-          if [ "$COUNT" -lt 1 ]; then
-            echo "::error::v$VER 的更新日志为空"
-            exit 1
-          fi
-
-      # ------------------------------------------------------------------
-      # 签名一致性前置校验：仓库内密钥的证书指纹必须与固定指纹文件一致。
-      # 这样任何「误换密钥」都会在构建前被发现。
-      # ------------------------------------------------------------------
-      - name: Verify signing certificate fingerprint (pre-build)
+      - name: Verify signing fingerprint (pre-build)
         env:
           KEYSTORE_PASSWORD: ${{ secrets.KEYSTORE_PASSWORD }}
           KEY_ALIAS: ${{ secrets.KEY_ALIAS }}
         run: |
           set -euo pipefail
-          EXPECTED=$(tr -d ' :\n\r' < android/signing/fingerprint.txt | tr 'A-F' 'a-f')
+          EXPECTED=$(tr -d ' :\n\r' < signing/fingerprint.txt | tr 'A-F' 'a-f')
           ACTUAL=$(keytool -list -v -keystore "$KEYSTORE_PATH" -storepass "$KEYSTORE_PASSWORD" -alias "$KEY_ALIAS" \
             | grep -m1 'SHA256:' | sed 's/.*SHA256: //' | tr -d ' :\r' | tr 'A-F' 'a-f')
-          echo "expected: $EXPECTED"
-          echo "actual  : $ACTUAL"
-          if [ "$EXPECTED" != "$ACTUAL" ]; then
-            echo "::error::签名证书与固定指纹不一致，本次构建会导致老用户无法覆盖安装"
-            exit 1
-          fi
+          echo "expected: $EXPECTED"; echo "actual  : $ACTUAL"
+          [ "$EXPECTED" = "$ACTUAL" ] || { echo "::error::签名证书与固定指纹不一致"; exit 1; }
           echo "✅ 签名证书指纹一致"
 
-      - name: Analyze
-        run: flutter analyze --no-fatal-infos --no-fatal-warnings
-
-      - name: Run tests
-        run: flutter test --reporter compact
-
-      - name: Accept Android licenses
-        run: yes | flutter doctor --android-licenses > /dev/null 2>&1 || true
-
-      # ------------------------------------------------------------------
-      # 分包构建：每台设备只下载自己 ABI 的包，安装包与内存占用都更小
-      # ------------------------------------------------------------------
-      - name: Build release APK (split per ABI)
-        run: flutter build apk --release --split-per-abi --obfuscate --split-debug-info=build/symbols
-
-      - name: Rename APKs
+      - name: Verify version consistency
         run: |
           set -euo pipefail
-          cd build/app/outputs/flutter-apk
-          shopt -s nullglob
-          for f in app-*-release.apk; do
-            abi="${f#app-}"; abi="${abi%-release.apk}"
-            mv -f "$f" "TreasureVault-${abi}.apk"
-          done
-          ls -1 TreasureVault-*.apk
+          NAME=$(grep -m1 'versionName = ' app/build.gradle.kts | sed -E 's/.*"([0-9.]+)".*/\1/')
+          CODE=$(grep -m1 'versionCode = ' app/build.gradle.kts | sed -E 's/.*= *([0-9]+).*/\1/')
+          NOTE=$(grep -m1 '"[0-9]+\.[0-9]+\.[0-9]+", "' app/src/main/kotlin/com/suibian/treasure_vault/core/AppInfo.kt \
+            | sed -E 's/.*"([0-9.]+)".*/\1/')
+          echo "gradle: $NAME ($CODE) | notes: $NOTE"
+          [ "$NAME" = "$NOTE" ] || { echo "::error::版本号与更新日志不一致"; exit 1; }
 
-      # ------------------------------------------------------------------
-      # 签名一致性后置校验：直接检查产出的 APK 实际签名
-      # ------------------------------------------------------------------
+      - name: Assemble release
+        env:
+          KEYSTORE_PASSWORD: ${{ secrets.KEYSTORE_PASSWORD }}
+          KEY_ALIAS: ${{ secrets.KEY_ALIAS }}
+          KEY_PASSWORD: ${{ secrets.KEY_PASSWORD }}
+          CI: "true"
+        run: ./gradlew :app:assembleRelease --no-daemon --stacktrace
+
+      - name: Rename APK
+        run: |
+          set -euo pipefail
+          VER=$(grep -m1 'versionName = ' app/build.gradle.kts | sed -E 's/.*"([0-9.]+)".*/\1/')
+          mv app/build/outputs/apk/release/app-release.apk "TreasureVault-$VER.apk"
+          ls -lh "TreasureVault-$VER.apk"
+          echo "VER=$VER" >> "$GITHUB_ENV"
+
       - name: Verify launcher activity exists in APK
-        # 防止「产物里没有 MainActivity」这类致命问题再次流出：
-        # 直接解出 dex 检索类名，缺失即失败。
         run: |
           set -euo pipefail
-          cd build/app/outputs/flutter-apk
-          for apk in TreasureVault-*.apk; do
-            if ! unzip -p "$apk" 'classes*.dex' | grep -a -q 'Lcom/suibian/treasure_vault/MainActivity;'; then
-              echo "::error::$apk 中缺少入口 MainActivity，安装后会立即闪退"
-              exit 1
-            fi
-            echo "✅ $apk 含入口 MainActivity"
-          done
+          if ! unzip -p "TreasureVault-$VER.apk" 'classes*.dex' | grep -a -q 'Lcom/suibian/treasure_vault/MainActivity;'; then
+            echo "::error::APK 缺少入口 MainActivity，安装后会闪退"
+            exit 1
+          fi
+          echo "✅ 含入口 MainActivity"
 
       - name: Verify APK signature (post-build)
         run: |
           set -euo pipefail
-          EXPECTED=$(tr -d ' :\n\r' < android/signing/fingerprint.txt | tr 'A-F' 'a-f')
+          EXPECTED=$(tr -d ' :\n\r' < signing/fingerprint.txt | tr 'A-F' 'a-f')
           APKSIGNER=$(ls -d "$ANDROID_SDK_ROOT"/build-tools/*/apksigner | sort -V | tail -1)
-          echo "using $APKSIGNER"
-          cd build/app/outputs/flutter-apk
-          for apk in TreasureVault-*.apk; do
-            ACTUAL=$("$APKSIGNER" verify --print-certs "$apk" \
-              | grep -m1 'SHA-256 digest' | sed 's/.*digest: //' | tr -d ' :\r' | tr 'A-F' 'a-f')
-            echo "$apk -> $ACTUAL"
-            if [ "$EXPECTED" != "$ACTUAL" ]; then
-              echo "::error::$apk 的签名指纹与固定值不一致"
-              exit 1
-            fi
-          done
-          echo "✅ 所有 APK 签名一致"
+          ACTUAL=$("$APKSIGNER" verify --print-certs "TreasureVault-$VER.apk" \
+            | grep -m1 'SHA-256 digest' | sed 's/.*digest: //' | tr -d ' :\r' | tr 'A-F' 'a-f')
+          echo "expected: $EXPECTED"; echo "actual  : $ACTUAL"
+          [ "$EXPECTED" = "$ACTUAL" ] || { echo "::error::APK 签名指纹不一致"; exit 1; }
+          echo "✅ APK 签名一致"
 
       - name: Build report
         run: |
-          set -euo pipefail
           echo "=========== APK inventory ==========="
-          cd build/app/outputs/flutter-apk
-          for f in TreasureVault-*.apk; do
-            size=$(stat -c%s "$f")
-            sha=$(sha256sum "$f" | cut -d' ' -f1)
-            printf '%-30s %10s bytes  %s\n' "$f" "$size" "$sha"
-          done
+          ls -l "TreasureVault-$VER.apk"
+          sha256sum "TreasureVault-$VER.apk"
           echo "====================================="
 
-      - name: Upload artifacts
+      - name: Upload artifact
         continue-on-error: true
         uses: actions/upload-artifact@v4
         with:
-          name: treasure-vault-apks
-          path: build/app/outputs/flutter-apk/TreasureVault-*.apk
+          name: treasure-vault-apk
+          path: TreasureVault-*.apk
           retention-days: 7
-          if-no-files-found: warn
-
-      # ------------------------------------------------------------------
-      # 发布：写入公开的 release 仓库，应用内检查更新读取这里
-      # ------------------------------------------------------------------
-      - name: Prepare release notes
-        id: notes
-        run: |
-          set -euo pipefail
-          VER=$(grep -m1 '^version:' pubspec.yaml | sed -E 's/version:[[:space:]]*([0-9]+\.[0-9]+\.[0-9]+).*/\1/')
-          echo "version=$VER" >> "$GITHUB_OUTPUT"
-          python3 - "$VER" > release_body.md <<'PY'
-          import re, sys
-          from pathlib import Path
-
-          ver = sys.argv[1]
-          text = Path('lib/models/release_notes.dart').read_text(encoding='utf-8')
-          block = re.search(r"version:\s*'%s'.*?(?=ReleaseNote\(|\Z)" % re.escape(ver), text, re.S)
-          items = []
-          if block:
-              items = re.findall(r"^\s*'([^']+)',?\s*$", block.group(0), re.M)
-          print(f'## 宝藏盒 v{ver}')
-          print()
-          print('### 更新内容')
-          for it in items:
-              print(f'- {it}')
-          print()
-          print('### 安装说明')
-          print('- 下载与机型匹配的 APK（arm64-v8a 适用于绝大多数手机）。')
-          print('- 覆盖安装无需卸载旧版本：所有构建均使用同一把签名密钥。')
-          PY
-          echo "----- release body -----"
-          cat release_body.md
 
       - name: Publish release
         if: github.ref == 'refs/heads/main'
         env:
-          # 发布到本仓库：仓库为公开，应用内更新无需 Token 即可读取 latest release
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           set -euo pipefail
-          VER="${{ steps.notes.outputs.version }}"
           TAG="v$VER"
-          echo "publishing $TAG to ${{ github.repository }}"
+          printf '## 宝藏盒 v%s\n\n- 原生 Android 重构：Kotlin + 原生 View，去掉 Flutter 引擎，安装包与常驻内存大幅下降。\n- 新增「主题设置」页（6 套配色 / 明暗模式 / 底部导航样式）与页面、工具过渡动画。\n- 掷骰子、抛硬币、随机抽签加入真实动效。\n- 工具持续扩充中，详细清单见仓库 README。\n' "$VER" > body.md
           if ! gh release view "$TAG" > /dev/null 2>&1; then
-            gh release create "$TAG" --title "宝藏盒 v$VER" --notes-file release_body.md
+            gh release create "$TAG" --title "宝藏盒 v$VER" --notes-file body.md
           else
-            gh release edit "$TAG" --title "宝藏盒 v$VER" --notes-file release_body.md
+            gh release edit "$TAG" --title "宝藏盒 v$VER" --notes-file body.md
           fi
-          gh release upload "$TAG" --clobber build/app/outputs/flutter-apk/TreasureVault-*.apk
+          gh release upload "$TAG" "TreasureVault-$VER.apk" --clobber
           echo "✅ 已发布 $TAG"
-          gh release view "$TAG" --json assets --jq '.assets[].name'
