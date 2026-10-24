@@ -23,8 +23,6 @@ env:
   #   KEYSTORE_BASE64 / KEYSTORE_PASSWORD / KEY_ALIAS / KEY_PASSWORD
   # 缺失时构建会直接失败，绝不会静默回退到 debug 签名。
   KEYSTORE_PATH: android/signing/treasure-vault.jks
-  # 公开的发布仓库（应用内更新读取它）
-  RELEASE_REPO: suibian-sun/Treasure-Vault-release
 
 jobs:
   build:
@@ -244,22 +242,18 @@ jobs:
       - name: Publish release
         if: github.ref == 'refs/heads/main'
         env:
-          GH_TOKEN: ${{ secrets.RELEASE_TOKEN }}
+          # 发布到本仓库：仓库为公开，应用内更新无需 Token 即可读取 latest release
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           set -euo pipefail
           VER="${{ steps.notes.outputs.version }}"
           TAG="v$VER"
-          echo "publishing $TAG to $RELEASE_REPO"
-          if ! gh release view "$TAG" --repo "$RELEASE_REPO" > /dev/null 2>&1; then
-            gh release create "$TAG" --repo "$RELEASE_REPO" \
-              --title "宝藏盒 v$VER" \
-              --notes-file release_body.md
+          echo "publishing $TAG to ${{ github.repository }}"
+          if ! gh release view "$TAG" > /dev/null 2>&1; then
+            gh release create "$TAG" --title "宝藏盒 v$VER" --notes-file release_body.md
           else
-            gh release edit "$TAG" --repo "$RELEASE_REPO" \
-              --title "宝藏盒 v$VER" \
-              --notes-file release_body.md
+            gh release edit "$TAG" --title "宝藏盒 v$VER" --notes-file release_body.md
           fi
-          gh release upload "$TAG" --repo "$RELEASE_REPO" --clobber \
-            build/app/outputs/flutter-apk/TreasureVault-*.apk
+          gh release upload "$TAG" --clobber build/app/outputs/flutter-apk/TreasureVault-*.apk
           echo "✅ 已发布 $TAG"
-          gh release view "$TAG" --repo "$RELEASE_REPO" --json assets --jq '.assets[].name'
+          gh release view "$TAG" --json assets --jq '.assets[].name'

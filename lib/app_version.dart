@@ -10,7 +10,7 @@ const String appName = '宝藏盒';
 const String appNameEn = 'Treasure Vault';
 const String appPackageId = 'com.suibian.treasure_vault';
 
-/// 更新源仓库（公开只读，供应用内检查更新 / 提交记录使用）。
-/// 源码仓库为私有，故发布产物统一投递到公开的 release 仓库。
-const String releaseRepo = 'suibian-sun/Treasure-Vault-release';
+/// 更新源仓库（公开只读，供应用内检查更新使用）。
+/// Release 直接发布在本仓库，`/releases/latest` 无需鉴权即可读取。
+const String releaseRepo = 'suibian-sun/Treasure-Vault';
 const String sourceRepo = 'suibian-sun/Treasure-Vault';

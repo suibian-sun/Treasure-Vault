@@ -93,7 +93,7 @@
 4. `flutter analyze` + `flutter build apk --release --split-per-abi`（含混淆与符号分离）；
 5. 用 `apksigner` 校验每个 APK 的 **实际签名指纹**（构建后二次校验）；
 6. 产物命名 `TreasureVault-<abi>.apk`，上传 artifact；
-7. 发布到公开仓库 `suibian-sun/Treasure-Vault-release`（tag `v1.0.0`，说明取自 `release_notes.dart`）。
+7. 发布到本仓库的 Releases（tag `v1.0.0`，说明取自 `release_notes.dart`），应用内「检查更新」读取该 Release。
 
 ### 签名一致性
 
