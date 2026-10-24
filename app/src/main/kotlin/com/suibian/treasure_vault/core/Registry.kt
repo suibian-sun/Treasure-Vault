@@ -1,14 +1,21 @@
 package com.suibian.treasure_vault.core
 
 import com.suibian.treasure_vault.tools.CalcTools
+import com.suibian.treasure_vault.tools.CleanTools
 import com.suibian.treasure_vault.tools.CodecTools
 import com.suibian.treasure_vault.tools.CryptoTools
 import com.suibian.treasure_vault.tools.DataTools
 import com.suibian.treasure_vault.tools.DateTools
 import com.suibian.treasure_vault.tools.DevTools
+import com.suibian.treasure_vault.tools.ImageTools
 import com.suibian.treasure_vault.tools.LifeTools
 import com.suibian.treasure_vault.tools.NetSystemTools
+import com.suibian.treasure_vault.tools.MediaTools
+import com.suibian.treasure_vault.tools.NetExtraTools
+import com.suibian.treasure_vault.tools.OcrTools
 import com.suibian.treasure_vault.tools.StudyTools
+import com.suibian.treasure_vault.tools.SensorTools
+import com.suibian.treasure_vault.tools.TextExtraTools
 import com.suibian.treasure_vault.tools.TextTools
 
 /**
@@ -24,6 +31,7 @@ object Registry {
     val tools: List<ToolSpec> by lazy {
         buildList {
             addAll(TextTools.all)
+            addAll(TextExtraTools.all)
             addAll(CodecTools.all)
             addAll(CryptoTools.all)
             addAll(DevTools.all)
@@ -32,6 +40,12 @@ object Registry {
             addAll(LifeTools.all)
             addAll(DataTools.all)
             addAll(StudyTools.all)
+            addAll(ImageTools.all)
+            addAll(OcrTools.all)
+            addAll(NetExtraTools.all)
+            addAll(SensorTools.all)
+            addAll(MediaTools.all)
+            addAll(CleanTools.all)
             addAll(NetSystemTools.all)
         }
     }

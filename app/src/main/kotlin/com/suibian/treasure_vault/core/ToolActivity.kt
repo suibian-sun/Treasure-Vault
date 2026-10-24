@@ -23,11 +23,79 @@ class ToolActivity : AppCompatActivity() {
 
     companion object {
         const val EXTRA_ID = "tool_id"
+        private const val REQ_PICK = 0x52
+        private const val REQ_PICK_MULTI = 0x53
+        private const val REQ_CAMERA = 0x54
+        private const val REQ_PERMISSION = 0x60
     }
 
     lateinit var spec: ToolSpec
     lateinit var body: LinearLayout
     private lateinit var star: TextView
+
+    /** 图片选择 / 拍照的临时回调（工具页用完即弃，不持有引用）。 */
+    var onPicked: ((android.net.Uri?) -> Unit)? = null
+        private set
+    private var pickRequest = 0x52
+    private var pendingCameraUri: android.net.Uri? = null
+
+    /** 选择一张图片。 */
+    fun pickImage(mime: String = "image/*", onResult: (android.net.Uri?) -> Unit) {
+        onPicked = onResult
+        pickRequest = REQ_PICK
+        val i = android.content.Intent(android.content.Intent.ACTION_OPEN_DOCUMENT).apply {
+            addCategory(android.content.Intent.CATEGORY_OPENABLE)
+            type = mime
+        }
+        runCatching { startActivityForResult(i, REQ_PICK) }
+            .onFailure { onPicked = null; Ui.toast(this, "无法打开文件选择器") }
+    }
+
+    /** 选择多个文件（用于拼接、GIF 合成）。 */
+    fun pickImages(onResult: (List<android.net.Uri>) -> Unit) {
+        onMultiPicked = onResult
+        val i = android.content.Intent(android.content.Intent.ACTION_OPEN_DOCUMENT).apply {
+            addCategory(android.content.Intent.CATEGORY_OPENABLE)
+            type = "image/*"
+            putExtra(android.content.Intent.EXTRA_ALLOW_MULTIPLE, true)
+        }
+        runCatching { startActivityForResult(i, REQ_PICK_MULTI) }
+            .onFailure { onMultiPicked = null; Ui.toast(this, "无法打开文件选择器") }
+    }
+
+    /** 选择任意文件（FTP 上传、音频等）。 */
+    fun pickFile(onResult: (android.net.Uri?) -> Unit) {
+        onPicked = onResult
+        val i = android.content.Intent(android.content.Intent.ACTION_OPEN_DOCUMENT).apply {
+            addCategory(android.content.Intent.CATEGORY_OPENABLE)
+            type = "*/*"
+        }
+        runCatching { startActivityForResult(i, REQ_PICK) }
+            .onFailure { onPicked = null; Ui.toast(this, "无法打开文件选择器") }
+    }
+
+    private var onMultiPicked: ((List<android.net.Uri>) -> Unit)? = null
+
+    /** 调起系统相机拍照，结果回传为临时文件 Uri。 */
+    fun capture(onResult: (android.net.Uri?) -> Unit) {
+        onPicked = onResult
+        runCatching {
+            val dir = java.io.File(cacheDir, "shots").apply { mkdirs() }
+            val f = java.io.File(dir, "shot_${System.currentTimeMillis()}.jpg")
+            val uri = androidx.core.content.FileProvider.getUriForFile(
+                this, "$packageName.fileprovider", f,
+            )
+            pendingCameraUri = uri
+            val i = android.content.Intent(android.provider.MediaStore.ACTION_IMAGE_CAPTURE).apply {
+                putExtra(android.provider.MediaStore.EXTRA_OUTPUT, uri)
+                addFlags(android.content.Intent.FLAG_GRANT_WRITE_URI_PERMISSION)
+            }
+            startActivityForResult(i, REQ_CAMERA)
+        }.onFailure {
+            onPicked = null
+            Ui.toast(this, "无法调起相机：${it.message}")
+        }
+    }
 
     override fun onCreate(savedInstanceState: Bundle?) {
         T.sync(this)
@@ -107,16 +175,75 @@ class ToolActivity : AppCompatActivity() {
         return wrap
     }
 
+    private val cleanups = mutableListOf<() -> Unit>()
+
+    /** 注册页面销毁时的清理动作（传感器注销、录音停止等）。 */
+    fun onCleanup(block: () -> Unit) {
+        cleanups.add(block)
+    }
+
+    private var permissionCallback: ((Boolean) -> Unit)? = null
+
+    /** 请求单个运行时权限。 */
+    fun askPermission(permission: String, onResult: (Boolean) -> Unit) {
+        if (androidx.core.content.ContextCompat.checkSelfPermission(this, permission) ==
+            android.content.pm.PackageManager.PERMISSION_GRANTED
+        ) {
+            onResult(true)
+            return
+        }
+        permissionCallback = onResult
+        androidx.core.app.ActivityCompat.requestPermissions(this, arrayOf(permission), REQ_PERMISSION)
+    }
+
+    override fun onRequestPermissionsResult(requestCode: Int, permissions: Array<out String>, grantResults: IntArray) {
+        super.onRequestPermissionsResult(requestCode, permissions, grantResults)
+        if (requestCode != REQ_PERMISSION) return
+        val cb = permissionCallback
+        permissionCallback = null
+        cb?.invoke(grantResults.isNotEmpty() && grantResults[0] == android.content.pm.PackageManager.PERMISSION_GRANTED)
+    }
+
+    override fun onDestroy() {
+        cleanups.forEach { runCatching { it() } }
+        cleanups.clear()
+        super.onDestroy()
+    }
+
     @Deprecated("Deprecated in Java")
     override fun onActivityResult(requestCode: Int, resultCode: Int, data: android.content.Intent?) {
         super.onActivityResult(requestCode, resultCode, data)
-        if (requestCode != 0x51 || resultCode != RESULT_OK) return
-        val uri = data?.data ?: return
-        runCatching {
-            val wm = getSystemService(android.app.WallpaperManager::class.java)
-            contentResolver.openInputStream(uri)?.use { wm.setStream(it) }
-            Ui.toast(this, "壁纸已设置")
-        }.onFailure { Ui.toast(this, "设置失败：${it.message}") }
+        when (requestCode) {
+            REQ_PICK -> {
+                val cb = onPicked; onPicked = null
+                cb?.invoke(if (resultCode == RESULT_OK) data?.data else null)
+            }
+            REQ_PICK_MULTI -> {
+                val cb = onMultiPicked; onMultiPicked = null
+                if (resultCode != RESULT_OK) { cb?.invoke(emptyList()); return }
+                val list = mutableListOf<android.net.Uri>()
+                val clip = data?.clipData
+                if (clip != null) {
+                    for (i in 0 until clip.itemCount) list.add(clip.getItemAt(i).uri)
+                } else {
+                    data?.data?.let { list.add(it) }
+                }
+                cb?.invoke(list)
+            }
+            REQ_CAMERA -> {
+                val cb = onPicked; onPicked = null
+                cb?.invoke(if (resultCode == RESULT_OK) pendingCameraUri else null)
+            }
+            0x51 -> {
+                if (resultCode != RESULT_OK) return
+                val uri = data?.data ?: return
+                runCatching {
+                    val wm = getSystemService(android.app.WallpaperManager::class.java)
+                    contentResolver.openInputStream(uri)?.use { wm.setStream(it) }
+                    Ui.toast(this, "壁纸已设置")
+                }.onFailure { Ui.toast(this, "设置失败：${it.message}") }
+            }
+        }
     }
 
     override fun finish() {

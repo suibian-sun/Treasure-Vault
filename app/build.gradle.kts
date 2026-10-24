@@ -10,11 +10,9 @@ android {
         applicationId = "com.suibian.treasure_vault"
         minSdk = 24
         targetSdk = 36
-        versionCode = 3
-        versionName = "2.0.0"
+        versionCode = 4
+        versionName = "2.1.0"
         resourceConfigurations += listOf("zh", "en")
-        // 只保留 arm64/v7a 两种常见 ABI（本工程无原生 .so，此项仅约束依赖）
-        ndk { abiFilters += listOf("arm64-v8a", "armeabi-v7a") }
     }
 
     signingConfigs {
@@ -55,6 +53,16 @@ android {
         }
     }
 
+    // 按 ABI 分包：OCR 依赖携带较大的原生库，拆包后单个安装包体积减半。
+    splits {
+        abi {
+            isEnable = true
+            reset()
+            include("arm64-v8a", "armeabi-v7a")
+            isUniversalApk = false
+        }
+    }
+
     buildFeatures {
         buildConfig = true
     }
@@ -79,4 +87,7 @@ dependencies {
     // 端侧 OCR / 条码（无 Key，模型按需下载，不进 APK）
     implementation("com.google.android.gms:play-services-mlkit-text-recognition:19.0.1")
     implementation("com.google.android.gms:play-services-mlkit-barcode-scanning:18.3.1")
+    implementation("com.google.mlkit:text-recognition-chinese:16.0.1")
+    // 二维码生成：只用 zxing core 的纯 Java 编码器（约 500KB，无 Activity 依赖）
+    implementation("com.google.zxing:core:3.5.3")
 }

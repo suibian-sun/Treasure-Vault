@@ -92,35 +92,44 @@ jobs:
         run: |
           set -euo pipefail
           VER=$(grep -m1 'versionName = ' app/build.gradle.kts | sed -E 's/.*"([0-9.]+)".*/\1/')
-          mv app/build/outputs/apk/release/app-release.apk "TreasureVault-$VER.apk"
-          ls -lh "TreasureVault-$VER.apk"
+          cd app/build/outputs/apk/release
+          for f in app-*-release.apk; do
+            ABI=$(basename "$f" | sed -E 's/^app-(.*)-release\.apk$/\1/')
+            mv "$f" "../../../../../TreasureVault-$VER-$ABI.apk"
+          done
+          cd -
+          ls -lh TreasureVault-*.apk
           echo "VER=$VER" >> "$GITHUB_ENV"
 
       - name: Verify launcher activity exists in APK
         run: |
           set -euo pipefail
-          if ! unzip -p "TreasureVault-$VER.apk" 'classes*.dex' | grep -a -q 'Lcom/suibian/treasure_vault/MainActivity;'; then
-            echo "::error::APK 缺少入口 MainActivity，安装后会闪退"
-            exit 1
-          fi
-          echo "✅ 含入口 MainActivity"
+          for apk in TreasureVault-*.apk; do
+            if ! unzip -p "$apk" 'classes*.dex' | grep -a -q 'Lcom/suibian/treasure_vault/MainActivity;'; then
+              echo "::error::$apk 缺少入口 MainActivity，安装后会闪退"
+              exit 1
+            fi
+            echo "✅ $apk 含入口 MainActivity"
+          done
 
       - name: Verify APK signature (post-build)
         run: |
           set -euo pipefail
           EXPECTED=$(tr -d ' :\n\r' < signing/fingerprint.txt | tr 'A-F' 'a-f')
           APKSIGNER=$(ls -d "$ANDROID_SDK_ROOT"/build-tools/*/apksigner | sort -V | tail -1)
-          ACTUAL=$("$APKSIGNER" verify --print-certs "TreasureVault-$VER.apk" \
-            | grep -m1 'SHA-256 digest' | sed 's/.*digest: //' | tr -d ' :\r' | tr 'A-F' 'a-f')
-          echo "expected: $EXPECTED"; echo "actual  : $ACTUAL"
-          [ "$EXPECTED" = "$ACTUAL" ] || { echo "::error::APK 签名指纹不一致"; exit 1; }
-          echo "✅ APK 签名一致"
+          for apk in TreasureVault-*.apk; do
+            ACTUAL=$("$APKSIGNER" verify --print-certs "$apk" \
+              | grep -m1 'SHA-256 digest' | sed 's/.*digest: //' | tr -d ' :\r' | tr 'A-F' 'a-f')
+            echo "$apk expected: $EXPECTED actual: $ACTUAL"
+            [ "$EXPECTED" = "$ACTUAL" ] || { echo "::error::$apk 签名指纹不一致"; exit 1; }
+          done
+          echo "✅ 所有 APK 签名一致"
 
       - name: Build report
         run: |
           echo "=========== APK inventory ==========="
-          ls -l "TreasureVault-$VER.apk"
-          sha256sum "TreasureVault-$VER.apk"
+          ls -l TreasureVault-*.apk
+          sha256sum TreasureVault-*.apk
           echo "====================================="
 
       - name: Upload artifact
@@ -138,11 +147,28 @@ jobs:
         run: |
           set -euo pipefail
           TAG="v$VER"
-          printf '## 宝藏盒 v%s\n\n- 原生 Android 重构：Kotlin + 原生 View，去掉 Flutter 引擎，安装包与常驻内存大幅下降。\n- 新增「主题设置」页（6 套配色 / 明暗模式 / 底部导航样式）与页面、工具过渡动画。\n- 掷骰子、抛硬币、随机抽签加入真实动效。\n- 工具持续扩充中，详细清单见仓库 README。\n' "$VER" > body.md
+          {
+            echo "## 宝藏盒 v$VER"
+            echo
+            echo "工具总数 **138 个**，全部本地运行；按 CPU 架构分包下载（按需选择 arm64-v8a 或 armeabi-v7a）。"
+            echo
+            echo "### 本次新增"
+            echo "- 图片：水印 / 九宫格 / 拼接 / 放大 / 锐化 / 拉伸修复 / 黑白上色 / 取色器 / 配色助手 / 证件照 / 表情包 / 带壳截图 / 文字转图 / 渐变图 / 拼豆图纸 / 隐藏图 / GIF 合成与分解 / 画板"
+            echo "- 识别：OCR 文字识别 / 表格转 CSV / 二维码生成与识别 / 以图搜图 / 拍照计数"
+            echo "- 文本：文本编辑器 / 拆分选词 / 中文转拼音 / 汉语词典 / 成语 / 近反义词 / 藏头诗 / 对联 / TextRank 摘要"
+            echo "- 传感：屏幕直尺 / 气泡水平仪 / 指南针 / 噪音计 / 金属探测仪"
+            echo "- 影音：白噪音 / 文字转语音 / 视频提取音轨 / 氢壁纸 / 系统壁纸导出"
+            echo "- 系统：大文件 / 空文件 / 空文件夹 / 安装包清理，手机端 FTP 局域网传输"
+            echo "- 查询：快递单号识别 / 手机号运营商 / 城市邮编 / 地址解析（均离线）"
+            echo
+            echo "### 说明"
+            echo "- OCR 首次使用需联网下载中文识别模型（端侧运行，图片不上传）。"
+            echo "- 存储清理需要「所有文件访问」权限，首次使用会引导授权。"
+          } > body.md
           if ! gh release view "$TAG" > /dev/null 2>&1; then
             gh release create "$TAG" --title "宝藏盒 v$VER" --notes-file body.md
           else
             gh release edit "$TAG" --title "宝藏盒 v$VER" --notes-file body.md
           fi
-          gh release upload "$TAG" "TreasureVault-$VER.apk" --clobber
+          gh release upload "$TAG" TreasureVault-*.apk --clobber
           echo "✅ 已发布 $TAG"
