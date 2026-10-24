@@ -91,8 +91,8 @@ jobs:
           set -euo pipefail
           PUB_VER=$(grep -m1 '^version:' pubspec.yaml | sed -E 's/version:[[:space:]]*([0-9]+\.[0-9]+\.[0-9]+).*/\1/')
           PUB_BUILD=$(grep -m1 '^version:' pubspec.yaml | sed -E 's/.*\+([0-9]+).*/\1/')
-          DART_VER=$(grep -m1 'appVersion' lib/app_version.dart | sed -E "s/.*'([0-9]+\.[0-9]+\.[0-9]+)'.*/\1/")
-          DART_BUILD=$(grep -m1 'appBuildNumber' lib/app_version.dart | sed -E "s/.*= *([0-9]+).*/\1/")
+          DART_VER=$(grep -m1 '^const String appVersion' lib/app_version.dart | sed -E "s/.*'([0-9]+\.[0-9]+\.[0-9]+)'.*/\1/")
+          DART_BUILD=$(grep -m1 '^const int appBuildNumber' lib/app_version.dart | sed -E "s/.*= *([0-9]+).*/\1/")
           echo "pubspec : $PUB_VER+$PUB_BUILD"
           echo "dart    : $DART_VER+$DART_BUILD"
           if [ "$PUB_VER" != "$DART_VER" ] || [ "$PUB_BUILD" != "$DART_BUILD" ]; then
