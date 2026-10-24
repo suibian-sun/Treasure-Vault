@@ -140,6 +140,12 @@ flutter build apk --release --split-per-abi   # 发布包
 
 要求：Flutter 3.47+（Dart 3.13+）、JDK 17、Android SDK 36。
 
+> **构建注意**：`android/app/build.gradle.kts` 显式应用了 `org.jetbrains.kotlin.android`。
+> 模板默认的 `android.builtInKotlin=false` 会关闭 AGP 内置 Kotlin 支持，
+> 此时若不显式应用 Kotlin 插件，`src/main/kotlin` 下的 `MainActivity` 不会参与编译，
+> 产物会缺少入口 Activity 并在启动时闪退。CI 已加入产物自检（dex 中必须存在
+> `com.suibian.treasure_vault.MainActivity`），此类问题不会再流出。
+
 ---
 
 ## 8. 设计参考
