@@ -1,0 +1,30 @@
+name: treasure_vault
+description: "宝藏盒 —— 极低内存占用的安卓工具集合（57 个内置工具）"
+publish_to: 'none'
+version: 1.0.0+1
+
+environment:
+  sdk: ^3.13.5
+
+# ---------------------------------------------------------------------------
+# 设计约束：本应用刻意保持「零第三方运行时依赖」。
+#
+# 所有能力（HTTP、哈希、设置持久化、文件选择、APK 安装）均由
+# dart:io / dart:ui / 自写 Kotlin 平台通道实现，因此：
+#   * 没有插件注册表膨胀，冷启动与常驻内存更低；
+#   * 没有第三方包随 Flutter 大版本升级而失配的风险；
+#   * APK 体积更小（无额外原生 .so）。
+# 请勿在此处随意添加依赖，除非确实无法用标准库实现。
+# ---------------------------------------------------------------------------
+dependencies:
+  flutter:
+    sdk: flutter
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+
+flutter:
+  uses-material-design: true
+  # 不打包任何字体 / 图片资源：中文统一使用系统字体，
+  # 图标使用 Material Icons 的 tree-shaking 子集，避免 8MB 字体与位图常驻。

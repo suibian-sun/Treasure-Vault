@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  FileProvider 暴露范围（最小必要）：
+  - files-path          : 应用私有 files/（updates/ 更新包目录）
+  - cache-path          : 应用私有 cache（图片工具的临时文件、SAF 复制件）
+  仅暴露应用自身私有目录，绝不放行公共存储或系统根目录；
+  运行时 MainActivity.safeFile 还会再做一次 canonicalPath 白名单校验。
+-->
+<paths>
+    <files-path name="updates" path="updates/" />
+    <files-path name="files_root" path="." />
+    <cache-path name="cache" path="." />
+</paths>
