@@ -12,6 +12,7 @@ import android.widget.LinearLayout
 import android.widget.ScrollView
 import android.widget.TextView
 import androidx.appcompat.app.AppCompatActivity
+import androidx.core.view.WindowCompat
 
 /**
  * 所有工具的宿主页面。
@@ -98,15 +99,14 @@ class ToolActivity : AppCompatActivity() {
     }
 
     override fun onCreate(savedInstanceState: Bundle?) {
-        T.sync(this)
         super.onCreate(savedInstanceState)
+        T.sync(this)
         val id = intent.getStringExtra(EXTRA_ID).orEmpty()
         spec = Registry.byId(id) ?: run { finish(); return }
         Prefs.get(this).markUsed(spec.id)
 
         window.statusBarColor = Color.TRANSPARENT
         window.navigationBarColor = Color.TRANSPARENT
-        setLightBars(!T.dark)
 
         val root = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
@@ -132,6 +132,8 @@ class ToolActivity : AppCompatActivity() {
         }
         root.addView(bodyView, LinearLayout.LayoutParams(-1, 0, 1f))
         setContentView(root)
+        // DecorView 只有在 setContentView 之后才存在，提前访问会 NPE
+        applySystemBars()
         playEnter()
     }
 
@@ -262,19 +264,11 @@ class ToolActivity : AppCompatActivity() {
         v.animate().alpha(1f).setDuration(160).start()
     }
 
-    private fun setLightBars(light: Boolean) {
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
-            window.insetsController?.setSystemBarsAppearance(
-                if (light) WindowInsetsController.APPEARANCE_LIGHT_STATUS_BARS else 0,
-                WindowInsetsController.APPEARANCE_LIGHT_STATUS_BARS,
-            )
-        } else {
-            @Suppress("DEPRECATION")
-            window.decorView.systemUiVisibility = if (light) {
-                View.SYSTEM_UI_FLAG_LIGHT_STATUS_BAR
-            } else {
-                0
-            }
+    private fun applySystemBars() {
+        runCatching {
+            val controller = WindowCompat.getInsetsController(window, window.decorView)
+            controller.isAppearanceLightStatusBars = !T.dark
+            controller.isAppearanceLightNavigationBars = !T.dark
         }
     }
 }

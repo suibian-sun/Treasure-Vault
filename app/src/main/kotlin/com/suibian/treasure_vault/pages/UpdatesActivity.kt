@@ -26,8 +26,8 @@ class UpdatesActivity : AppCompatActivity() {
     private lateinit var container: LinearLayout
 
     override fun onCreate(savedInstanceState: Bundle?) {
-        T.sync(this)
         super.onCreate(savedInstanceState)
+        T.sync(this)
         window.statusBarColor = Color.TRANSPARENT
         window.navigationBarColor = Color.TRANSPARENT
 
@@ -43,6 +43,11 @@ class UpdatesActivity : AppCompatActivity() {
             LinearLayout.LayoutParams(-1, 0, 1f),
         )
         setContentView(root)
+        runCatching {
+            val c = androidx.core.view.WindowCompat.getInsetsController(window, window.decorView)
+            c.isAppearanceLightStatusBars = !T.dark
+            c.isAppearanceLightNavigationBars = !T.dark
+        }
         load()
     }
 

@@ -31,11 +31,21 @@ class ThemeActivity : AppCompatActivity() {
     private lateinit var container: LinearLayout
 
     override fun onCreate(savedInstanceState: Bundle?) {
-        T.sync(this)
         super.onCreate(savedInstanceState)
+        T.sync(this)
         window.statusBarColor = Color.TRANSPARENT
         window.navigationBarColor = Color.TRANSPARENT
         setContentView(build())
+        applyBars()
+    }
+
+    /** 状态栏图标深浅必须等 DecorView 创建后再设置。 */
+    private fun applyBars() {
+        runCatching {
+            val c = androidx.core.view.WindowCompat.getInsetsController(window, window.decorView)
+            c.isAppearanceLightStatusBars = !T.dark
+            c.isAppearanceLightNavigationBars = !T.dark
+        }
     }
 
     private fun build(): View {

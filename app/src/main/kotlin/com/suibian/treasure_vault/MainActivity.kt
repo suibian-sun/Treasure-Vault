@@ -12,6 +12,7 @@ import android.widget.LinearLayout
 import android.widget.TextView
 import androidx.appcompat.app.AppCompatActivity
 import androidx.core.view.ViewCompat
+import androidx.core.view.WindowCompat
 import androidx.core.view.WindowInsetsCompat
 import com.suibian.treasure_vault.core.Gap
 import com.suibian.treasure_vault.core.Prefs
@@ -40,7 +41,11 @@ class MainActivity : AppCompatActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         // 启动过程任何环节出错都退化为「可读的错误页」，而不是直接闪退
-        runCatching { buildUi() }.onFailure { showFatal(it) }
+        try {
+            buildUi()
+        } catch (t: Throwable) {
+            runCatching { showFatal(t) }
+        }
     }
 
     private fun buildUi() {
@@ -50,7 +55,6 @@ class MainActivity : AppCompatActivity() {
 
         window.statusBarColor = Color.TRANSPARENT
         window.navigationBarColor = Color.TRANSPARENT
-        lightBars(!T.dark)
 
         val root = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
@@ -61,6 +65,9 @@ class MainActivity : AppCompatActivity() {
         bar = buildBar()
         root.addView(bar, LinearLayout.LayoutParams(-1, -2))
         setContentView(root)
+        // 必须在 setContentView 之后：此时 DecorView 才存在，
+        // 提前访问 window.insetsController 会 NPE（PhoneWindow.getInsetsController 读 mDecor）
+        applySystemBars()
 
         ViewCompat.setOnApplyWindowInsetsListener(root) { v, insets ->
             val bars = insets.getInsets(WindowInsetsCompat.Type.systemBars())
@@ -188,16 +195,12 @@ class MainActivity : AppCompatActivity() {
 
     fun goAll() = show(1, true)
 
-    private fun lightBars(light: Boolean) {
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
-            window.insetsController?.setSystemBarsAppearance(
-                if (light) WindowInsetsController.APPEARANCE_LIGHT_STATUS_BARS else 0,
-                WindowInsetsController.APPEARANCE_LIGHT_STATUS_BARS,
-            )
-        } else {
-            @Suppress("DEPRECATION")
-            window.decorView.systemUiVisibility =
-                if (light) View.SYSTEM_UI_FLAG_LIGHT_STATUS_BAR else 0
+    /** 深浅色系统栏图标。调用时机必须在 setContentView 之后。 */
+    private fun applySystemBars() {
+        runCatching {
+            val controller = WindowCompat.getInsetsController(window, window.decorView)
+            controller.isAppearanceLightStatusBars = !T.dark
+            controller.isAppearanceLightNavigationBars = !T.dark
         }
     }
 }

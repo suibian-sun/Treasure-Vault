@@ -20,6 +20,14 @@ object AppInfo {
     /** 离线兜底日志（在线时以 Release 说明为准）。 */
     val NOTES = listOf(
         Note(
+            "2.1.2", "2026-10-25",
+            listOf(
+                "【修复·闪退】修复启动时必现的空指针：设置状态栏深浅色时，DecorView 还没创建（在 setContentView 之前访问 window.insetsController），Android 11 及以上一定崩溃。现已改到 setContentView 之后，并换用 WindowCompat 安全接口。",
+                "【修复】工具页、主题设置页、更新记录页存在同样的调用顺序问题，一并修正。",
+                "【加固】启动异常改为显式 try/catch，任何构建错误都会落到可复制的错误页。",
+            ),
+        ),
+        Note(
             "2.1.1", "2026-10-24",
             listOf(
                 "【修复·重要】修复部分设备「打开即闪退」：ML Kit 会在应用启动阶段自动初始化，缺少 Google Play 服务的设备上会直接崩溃。现已把该初始化从启动路径移除，改为首次使用识别功能时才执行，失败也只影响当前工具。",
