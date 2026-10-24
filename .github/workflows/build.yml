@@ -75,7 +75,7 @@ jobs:
           set -euo pipefail
           NAME=$(grep -m1 'versionName = ' app/build.gradle.kts | sed -E 's/.*"([0-9.]+)".*/\1/')
           CODE=$(grep -m1 'versionCode = ' app/build.gradle.kts | sed -E 's/.*= *([0-9]+).*/\1/')
-          NOTE=$(grep -m1 '"[0-9]+\.[0-9]+\.[0-9]+", "' app/src/main/kotlin/com/suibian/treasure_vault/core/AppInfo.kt \
+          NOTE=$(grep -m1 -E '"[0-9]+\.[0-9]+\.[0-9]+", "' app/src/main/kotlin/com/suibian/treasure_vault/core/AppInfo.kt \
             | sed -E 's/.*"([0-9.]+)".*/\1/')
           echo "gradle: $NAME ($CODE) | notes: $NOTE"
           [ "$NAME" = "$NOTE" ] || { echo "::error::版本号与更新日志不一致"; exit 1; }
