@@ -30,7 +30,7 @@ object DevTools {
 
     val all: List<ToolSpec> = listOf(
         spec("regex_test", "正则测试", "实时匹配与分组捕获", "🧪", "正则", "regex") { a, b -> regex(a, b) },
-        spec("color_convert", "颜色转换", "HEX / RGB / HSL 互转与预览", "🎨", "颜色", "hex", "rgb") { a, b -> color(a, b) },
+        spec("color_convert", "颜色码转换", "HEX / RGB / HSL 互转与预览", "🎨", "颜色", "颜色码", "hex", "rgb") { a, b -> color(a, b) },
         spec("jwt", "JWT 解析", "解析 Header / Payload 与过期状态", "🪪", "jwt", "token") { a, b -> jwt(a, b) },
         spec("http_status", "HTTP 状态码", "查询状态码含义", "🌐", "http", "状态码") { a, b -> httpStatus(a, b) },
         spec("json_to_dart", "JSON 转 Dart", "根据 JSON 结构生成模型类", "🧬", "json", "dart", "model") { a, b -> jsonToDart(a, b) },
