@@ -19,3 +19,8 @@
     public static *** v(...);
     public static *** i(...);
 }
+
+# Flutter 引擎里对 Play Core 的引用属于「延迟组件」可选能力，
+# 未接入 Play Core 依赖时 R8 会报 Missing class，这里显式忽略。
+-dontwarn com.google.android.play.core.**
+-dontwarn io.flutter.embedding.engine.deferredcomponents.**
