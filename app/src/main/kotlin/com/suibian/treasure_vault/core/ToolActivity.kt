@@ -119,7 +119,16 @@ class ToolActivity : AppCompatActivity() {
             setPadding(dp(16), dp(14), dp(16), dp(28))
         }
         body = content
-        spec.build(this, content)
+        // 单个工具构建失败不应该让整个页面闪退
+        try {
+            spec.build(this, content)
+        } catch (t: Throwable) {
+            content.removeAllViews()
+            content.addView(tv("这个工具加载失败：${t.javaClass.simpleName}", 14f, T.danger, true))
+            content.addView(
+                tv(t.message.orEmpty(), 12f, T.ink2).apply { setPadding(0, dp(6), 0, 0) },
+            )
+        }
 
         val bodyView: View = if (spec.scroll) {
             ScrollView(this).apply {
