@@ -7,8 +7,12 @@
 -keep class io.flutter.plugins.** { *; }
 -keep class io.flutter.embedding.** { *; }
 
-# 本应用的原生入口
+# 本应用的原生入口：清单中声明的组件必须原样保留，
+# 否则 R8 裁剪后启动会 ClassNotFoundException。
 -keep class com.suibian.treasure_vault.** { *; }
+-keep class com.suibian.treasure_vault.MainActivity { *; }
+-keep public class * extends io.flutter.embedding.android.FlutterActivity { *; }
+-keep public class * extends android.app.Application { *; }
 
 # AndroidX 注解（R8 在裁剪时需要的元数据）
 -keepattributes *Annotation*, Signature, InnerClasses, EnclosingMethod

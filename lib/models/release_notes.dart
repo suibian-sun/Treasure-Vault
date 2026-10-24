@@ -18,6 +18,16 @@ class ReleaseNote {
 
 const List<ReleaseNote> kReleaseNotes = [
   ReleaseNote(
+    version: '1.0.1',
+    date: '2026-10-24',
+    items: [
+      '【修复·重要】修复应用启动后立即闪退的问题：此前的构建产物中入口 Activity 未被编译进包，系统找不到启动组件。',
+      'Android 构建显式启用 Kotlin 编译，并补充混淆保留规则，确保入口组件与原生通道不被裁剪。',
+      '构建流水线新增产物自检：APK 中若缺少入口 Activity，直接判定构建失败，不再发布。',
+    ],
+    fixes: [],
+  ),
+  ReleaseNote(
     version: '1.0.0',
     date: '2026-10-23',
     items: [

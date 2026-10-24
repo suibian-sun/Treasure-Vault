@@ -171,6 +171,20 @@ jobs:
       # ------------------------------------------------------------------
       # 签名一致性后置校验：直接检查产出的 APK 实际签名
       # ------------------------------------------------------------------
+      - name: Verify launcher activity exists in APK
+        # 防止「产物里没有 MainActivity」这类致命问题再次流出：
+        # 直接解出 dex 检索类名，缺失即失败。
+        run: |
+          set -euo pipefail
+          cd build/app/outputs/flutter-apk
+          for apk in TreasureVault-*.apk; do
+            if ! unzip -p "$apk" 'classes*.dex' | grep -a -q 'Lcom/suibian/treasure_vault/MainActivity;'; then
+              echo "::error::$apk 中缺少入口 MainActivity，安装后会立即闪退"
+              exit 1
+            fi
+            echo "✅ $apk 含入口 MainActivity"
+          done
+
       - name: Verify APK signature (post-build)
         run: |
           set -euo pipefail

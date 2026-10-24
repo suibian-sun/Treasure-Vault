@@ -2,8 +2,8 @@
 ///
 /// 约定（CI 会校验）：本文件的 `appVersion` 必须与 `pubspec.yaml` 的
 /// `version:` 前半段完全一致，否则构建失败。
-const String appVersion = '1.0.0';
-const int appBuildNumber = 1;
+const String appVersion = '1.0.1';
+const int appBuildNumber = 2;
 
 /// 应用展示名与包名（关于页 / 更新日志使用）。
 const String appName = '宝藏盒';

@@ -1,5 +1,9 @@
 plugins {
     id("com.android.application")
+    // 必须显式应用 Kotlin 插件：模板里 android.builtInKotlin=false，
+    // 若只依赖 AGP 内置 Kotlin，src/main/kotlin 下的 MainActivity 不会被编译，
+    // 产物会缺少入口 Activity 导致启动即闪退。
+    id("org.jetbrains.kotlin.android")
     id("dev.flutter.flutter-gradle-plugin")
 }
 
